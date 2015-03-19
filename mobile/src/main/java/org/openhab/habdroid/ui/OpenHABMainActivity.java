@@ -26,6 +26,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
+import android.location.Location;
 import android.net.Uri;
 import android.nfc.NfcAdapter;
 import android.os.AsyncTask;
@@ -53,7 +54,12 @@ import android.widget.Toast;
 
 import com.crittercism.app.Crittercism;
 import com.google.android.gms.analytics.GoogleAnalytics;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.gcm.GoogleCloudMessaging;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.SyncHttpClient;
@@ -88,7 +94,9 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -100,7 +108,8 @@ import de.duenndns.ssl.MemorizingResponder;
 import de.duenndns.ssl.MemorizingTrustManager;
 
 public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSelectedListener,
-        OpenHABTrackerReceiver, MemorizingResponder {
+        OpenHABTrackerReceiver, MemorizingResponder, GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, LocationListener {
     // Logging TAG
     private static final String TAG = "MainActivity";
     // Activities request codes
@@ -108,6 +117,7 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
     private static final int WRITE_NFC_TAG_REQUEST_CODE = 1003;
     private static final int INFO_REQUEST_CODE = 1004;
     public static final String GCM_SENDER_ID = "737820980945";
+
     // Base URL of current openHAB connection
     private String openHABBaseUrl = "https://demo.openhab.org:8443/";
     // openHAB username
@@ -116,6 +126,7 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
     private String openHABPassword = "";
     // openHAB Bonjour service name
     private String openHABServiceType;
+    private String mLastUpdateTime;
     // view pager for widgetlist fragments
     private OpenHABViewPager pager;
     // view pager adapter for widgetlist fragments
@@ -136,6 +147,8 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
     private boolean mVoiceRecognitionEnabled = false;
     // If openHAB discovery is enabled
     private boolean mServiceDiscoveryEnabled = true;
+    private boolean mRequestingLocationUpdates = true;
+    private GoogleApiClient mGoogleApiClient;
     // Loopj
 //    private static MyAsyncHttpClient mAsyncHttpClient;
     private static AsyncHttpClient mAsyncHttpClient = new AsyncHttpClient();
@@ -158,7 +171,8 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
     private boolean supportsKitKat = false;
     private NetworkConnectivityInfo mStartedWithNetworkConnectivityInfo;
     private int mOpenHABVersion;
-
+    private Location mCurrentLocation;
+    private LocationRequest mLocationRequest;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.d(TAG, "onCreate()");
@@ -270,6 +284,15 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
                 }
             }
         }
+
+        /*******************************
+         * New Code - Taken from sample Google app
+         */
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .build();
 
         /**
          * If we are 4.4 we can use fullscreen mode and Daydream features
@@ -710,6 +733,7 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
     public void onStart() {
         super.onStart();
         // Start activity tracking via Google Analytics
+        mGoogleApiClient.connect();
         if (!isDeveloper)
             GoogleAnalytics.getInstance(this).reportActivityStart(this);
     }
@@ -722,6 +746,8 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
         Log.d(TAG, "onStop()");
         super.onStop();
         // Stop activity tracking via Google Analytics
+        if(mGoogleApiClient.isConnected())
+            mGoogleApiClient.disconnect();
         if (!isDeveloper)
             GoogleAnalytics.getInstance(this).reportActivityStop(this);
         if (mOpenHABTracker != null)
@@ -1064,4 +1090,57 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
             checkFullscreen();
         }
     };
+
+    public void onConnectionSuspended(int cause) {
+        Log.d("LOCATION_CONNECTION",Integer.toString(cause));
+    }
+
+    public void onConnected(Bundle connectionHint) {
+
+        Location mLastLocation = null;
+        if(mGoogleApiClient.isConnected())
+            mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+        if(mLastLocation != null) {
+            Log.d("LOCATION_LATITUDE",String.valueOf(mLastLocation.getLatitude()));
+            Log.d("LOCATION_LONGITUDE",String.valueOf(mLastLocation.getLongitude()));
+
+            mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
+            String temp1 = String.valueOf(mLastLocation.getLatitude());
+            String temp2 = String.valueOf(mLastLocation.getLongitude());
+            String temp3 = String.format("%s,%s%s",temp1 ,temp2 , mLastUpdateTime);
+            sendItemCommand("LOCATION", temp3);
+        }
+        if(mRequestingLocationUpdates) {
+            startLocationUpdates();
+        }
+    }
+
+    protected void startLocationUpdates() {
+        Log.d("LOCATION_CONNECTION","startLocationUpdates");
+        try {
+            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+        }
+        catch(NullPointerException e) {
+            Log.d("ERROR",e.toString());
+        }
+    }
+
+    public void onLocationChanged(Location location) {
+        Log.d("LOCATION_CONNECTION","onLocationChanged");
+        mCurrentLocation = location;
+        mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
+        sendItemCommand("LOCATION",String.valueOf(location.getLatitude())+","+String.valueOf(location.getLongitude())+mLastUpdateTime);
+    }
+
+    protected void createLocationRequest() {
+        Log.d("LOCATION_CONNECTION","createLocationRequest");
+         mLocationRequest = new LocationRequest();
+        mLocationRequest.setInterval(10000);
+        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+    }
+
+    public void onConnectionFailed(ConnectionResult result) {
+        Log.d("LOCATION_CONNECTION",result.toString());
+    }
 }
