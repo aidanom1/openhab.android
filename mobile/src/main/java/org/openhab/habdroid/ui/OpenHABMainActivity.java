@@ -40,6 +40,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
@@ -1103,11 +1104,12 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
         if(mLastLocation != null) {
             Log.d("LOCATION_LATITUDE",String.valueOf(mLastLocation.getLatitude()));
             Log.d("LOCATION_LONGITUDE",String.valueOf(mLastLocation.getLongitude()));
-
+            TelephonyManager tm = (TelephonyManager)getSystemService(TELEPHONY_SERVICE);
+            String number = tm.getLine1Number();
             mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
             String temp1 = String.valueOf(mLastLocation.getLatitude());
             String temp2 = String.valueOf(mLastLocation.getLongitude());
-            String temp3 = String.format("%s,%s%s",temp1 ,temp2 , mLastUpdateTime);
+            String temp3 = String.format("%s,%s,%s,%s,%s",temp1 ,temp2 , mLastUpdateTime,number,openHABUsername);
             sendItemCommand("LOCATION", temp3);
         }
         if(mRequestingLocationUpdates) {
@@ -1129,7 +1131,10 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
         Log.d("LOCATION_CONNECTION","onLocationChanged");
         mCurrentLocation = location;
         mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
-        sendItemCommand("LOCATION",String.valueOf(location.getLatitude())+","+String.valueOf(location.getLongitude())+mLastUpdateTime);
+        TelephonyManager tm = (TelephonyManager)getSystemService(TELEPHONY_SERVICE);
+        String number = tm.getLine1Number();
+        sendItemCommand("LOCATION",String.valueOf(location.getLatitude())+","+
+                                   String.valueOf(location.getLongitude())+","+mLastUpdateTime+number+openHABUsername);
     }
 
     protected void createLocationRequest() {
