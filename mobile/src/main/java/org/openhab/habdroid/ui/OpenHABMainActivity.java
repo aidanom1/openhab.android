@@ -80,6 +80,7 @@ import org.openhab.habdroid.core.NotificationDeletedBroadcastReceiver;
 import org.openhab.habdroid.core.OpenHABTracker;
 import org.openhab.habdroid.core.OpenHABTrackerReceiver;
 import org.openhab.habdroid.core.OpenHABVoiceService;
+import org.openhab.habdroid.core.OpenHABLocationService;
 import org.openhab.habdroid.model.OpenHABLinkedPage;
 import org.openhab.habdroid.model.OpenHABSitemap;
 import org.openhab.habdroid.ui.drawer.OpenHABDrawerAdapter;
@@ -110,7 +111,7 @@ import de.duenndns.ssl.MemorizingTrustManager;
 
 public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSelectedListener,
         OpenHABTrackerReceiver, MemorizingResponder, GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, LocationListener {
+        GoogleApiClient.OnConnectionFailedListener {
     // Logging TAG
     private static final String TAG = "MainActivity";
     // Activities request codes
@@ -1101,47 +1102,31 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
         Location mLastLocation = null;
         if(mGoogleApiClient.isConnected())
             mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        if(mLastLocation != null) {
-            Log.d("LOCATION_LATITUDE",String.valueOf(mLastLocation.getLatitude()));
-            Log.d("LOCATION_LONGITUDE",String.valueOf(mLastLocation.getLongitude()));
-            TelephonyManager tm = (TelephonyManager)getSystemService(TELEPHONY_SERVICE);
-            String number = tm.getLine1Number();
-            mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
-            String temp1 = String.valueOf(mLastLocation.getLatitude());
-            String temp2 = String.valueOf(mLastLocation.getLongitude());
-            String temp3 = String.format("%s,%s,%s,%s,%s",temp1 ,temp2 , mLastUpdateTime,number,openHABUsername);
-            sendItemCommand("LOCATION", temp3);
-        }
         if(mRequestingLocationUpdates) {
             startLocationUpdates();
         }
     }
 
     protected void startLocationUpdates() {
+        createLocationRequest();
+        Intent locationIntent = new Intent(getApplicationContext(), OpenHABLocationService.class);
+        PendingIntent pendingIntent = PendingIntent.getService(this, 0,
+                locationIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT);
         Log.d("LOCATION_CONNECTION","startLocationUpdates");
         try {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, pendingIntent);
         }
         catch(NullPointerException e) {
             Log.d("ERROR",e.toString());
         }
     }
 
-    public void onLocationChanged(Location location) {
-        Log.d("LOCATION_CONNECTION","onLocationChanged");
-        mCurrentLocation = location;
-        mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
-        TelephonyManager tm = (TelephonyManager)getSystemService(TELEPHONY_SERVICE);
-        String number = tm.getLine1Number();
-        sendItemCommand("LOCATION",String.valueOf(location.getLatitude())+","+
-                                   String.valueOf(location.getLongitude())+","+mLastUpdateTime+number+openHABUsername);
-    }
-
     protected void createLocationRequest() {
         Log.d("LOCATION_CONNECTION","createLocationRequest");
          mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(10000);
-        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setInterval(300000);
+        mLocationRequest.setFastestInterval(60000);
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
     }
 
