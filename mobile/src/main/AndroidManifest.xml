@@ -28,6 +28,7 @@
     <uses-permission android:name="android.permission.NETWORK_PROVIDER"/>
     <uses-permission android:name="android.permission.GPS_PROVIDER" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-feature
         android:name="android.hardware.nfc"
@@ -99,6 +100,12 @@
         </receiver>
 
         <service android:name=".core.GcmIntentService" />
+
+        <receiver android:name="org.openhab.habdroid.ui.OpenHABMainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".ui.VoiceWidget"
