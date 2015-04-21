@@ -1125,8 +1125,8 @@ public class OpenHABMainActivity extends FragmentActivity implements OnWidgetSel
     protected void createLocationRequest() {
         Log.d("LOCATION_CONNECTION","createLocationRequest");
          mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(240000);
-        mLocationRequest.setFastestInterval(180000);
+        mLocationRequest.setInterval(30000);
+        mLocationRequest.setFastestInterval(60000);
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
     }
 
